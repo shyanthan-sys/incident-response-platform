@@ -10,3 +10,5 @@ python-jose[cryptography]>=3.3.0
 httpx>=0.28.0
 itsdangerous>=2.2.0
 python-multipart>=0.0.17
+celery>=5.4.0
+redis>=5.0.0

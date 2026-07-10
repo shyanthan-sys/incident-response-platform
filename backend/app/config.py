@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     )
 
     database_url: str = "postgresql://postgres:postgres@localhost:5432/incident_response"
+    redis_url: str = "redis://localhost:6379/0"
+    chaos_service_url: str = "http://localhost:8001"
     google_client_id: str
     google_client_secret: str
     google_redirect_uri: str = "http://localhost:8000/auth/google/callback"

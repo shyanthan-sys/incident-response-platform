@@ -38,14 +38,36 @@ services:
   #     redis:
   #       condition: service_healthy
 
-  # chaos-service:
-  #   build: ./chaos-service
-  #   ports:
-  #     - "8001:8001"
-  #   env_file: .env
-  #   depends_on:
-  #     redis:
-  #       condition: service_healthy
+  chaos-service:
+    build: ./chaos-service
+    ports:
+      - "8001:8001"
+
+  celery-worker:
+    build: ./backend
+    command: celery -A app.celery_app worker --loglevel=info --pool=solo
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/incident_response
+      REDIS_URL: redis://redis:6379/0
+      CHAOS_SERVICE_URL: http://chaos-service:8001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chaos-service:
+        condition: service_started
+
+  celery-beat:
+    build: ./backend
+    command: celery -A app.celery_app beat --loglevel=info
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
 
   # frontend:
   #   build: ./frontend
