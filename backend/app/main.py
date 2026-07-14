@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -5,14 +6,29 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import get_settings
-from app.routers import auth
+from app.routers import auth, incidents
+from app.ws.manager import IncidentConnectionManager
+from app.ws.redis_listener import run_incident_subscriber
 
 settings = get_settings()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    yield
+    manager = IncidentConnectionManager()
+    app.state.incident_ws_manager = manager
+
+    subscriber_task = asyncio.create_task(
+        run_incident_subscriber(manager, settings.redis_url)
+    )
+    try:
+        yield
+    finally:
+        subscriber_task.cancel()
+        try:
+            await subscriber_task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(
@@ -35,6 +51,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(incidents.router)
 
 
 @app.get("/health")

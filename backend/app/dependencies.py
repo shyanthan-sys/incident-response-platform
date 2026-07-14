@@ -13,11 +13,7 @@ from app.models.user import User
 security = HTTPBearer()
 
 
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db),
-) -> User:
-    token = credentials.credentials
+async def get_user_from_token(token: str, db: AsyncSession) -> User:
     try:
         user_id: uuid.UUID = decode_access_token(token)
     except JWTError as exc:
@@ -36,3 +32,10 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    return await get_user_from_token(credentials.credentials, db)
