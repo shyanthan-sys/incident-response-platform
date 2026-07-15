@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, String, func
+from sqlalchemy import DateTime, Enum, Float, JSON, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -67,5 +67,13 @@ class Incident(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     resolved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    diagnosis: Mapped[str | None] = mapped_column(Text, nullable=True)
+    diagnosis_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    suggested_action: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    diagnosis_reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
+    referenced_postmortem_titles: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    diagnosed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

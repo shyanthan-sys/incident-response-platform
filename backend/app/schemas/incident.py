@@ -16,6 +16,12 @@ class IncidentResponse(BaseModel):
     status: IncidentStatus
     detected_at: datetime
     resolved_at: datetime | None
+    diagnosis: str | None = None
+    diagnosis_confidence: float | None = None
+    suggested_action: str | None = None
+    diagnosis_reasoning: str | None = None
+    referenced_postmortem_titles: list[str] | None = None
+    diagnosed_at: datetime | None = None
 
 
 class IncidentListResponse(BaseModel):

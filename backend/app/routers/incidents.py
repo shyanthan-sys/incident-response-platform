@@ -1,11 +1,15 @@
 import asyncio
 import json
 import logging
+import uuid
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.diagnosis_agent import incident_to_diagnosis_state, stream_diagnosis
 from app.database import get_db
 from app.dependencies import get_current_user, get_user_from_token
 from app.models.incident import Incident, IncidentStatus
@@ -55,6 +59,45 @@ async def list_incidents(
         limit=limit,
         offset=offset,
     )
+
+
+@router.post("/incidents/{incident_id}/analyze")
+async def analyze_incident(
+    incident_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(Incident).where(Incident.id == incident_id))
+    incident = result.scalar_one_or_none()
+    if incident is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
+
+    initial_state = incident_to_diagnosis_state(incident)
+
+    async def event_stream():
+        final_diagnosis: dict | None = None
+
+        async for chunk in stream_diagnosis(initial_state):
+            yield f"data: {json.dumps(chunk)}\n\n"
+            if isinstance(chunk, dict) and chunk.get("type") == "complete":
+                final_diagnosis = chunk.get("diagnosis")
+
+        if final_diagnosis:
+            refresh = await db.execute(select(Incident).where(Incident.id == incident_id))
+            row = refresh.scalar_one()
+            row.diagnosis = final_diagnosis.get("diagnosis")
+            row.diagnosis_confidence = final_diagnosis.get("confidence")
+            row.suggested_action = final_diagnosis.get("suggested_action")
+            row.diagnosis_reasoning = final_diagnosis.get("reasoning")
+            row.referenced_postmortem_titles = final_diagnosis.get(
+                "referenced_postmortem_titles"
+            )
+            row.diagnosed_at = datetime.now(UTC)
+            await db.commit()
+
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @router.websocket("/ws/incidents")

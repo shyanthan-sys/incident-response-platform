@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 days
     session_secret_key: str = "change-me-in-production"
     frontend_url: str = "http://localhost:3000"
+    groq_api_key: str
 
     @property
     def async_database_url(self) -> str:

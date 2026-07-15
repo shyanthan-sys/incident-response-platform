@@ -69,3 +69,6 @@ logs/
 # Testing / coverage
 coverage/
 .nyc_output/
+
+# Vector store (local ChromaDB persistence)
+backend/data/chroma/
