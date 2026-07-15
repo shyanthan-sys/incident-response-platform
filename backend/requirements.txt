@@ -12,3 +12,5 @@ itsdangerous>=2.2.0
 python-multipart>=0.0.17
 celery>=5.4.0
 redis>=5.0.0
+chromadb>=0.5.0
+sentence-transformers>=3.0.0
