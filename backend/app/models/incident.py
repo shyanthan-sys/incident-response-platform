@@ -12,12 +12,15 @@ from app.database import Base
 class IncidentStatus(str, enum.Enum):
     """Python member names are UPPERCASE; persisted string values are lowercase.
 
-    Must match Alembic/Postgres incident_status exactly: open, auto_recovered, resolved.
+    Must match Alembic/Postgres incident_status exactly:
+    open, auto_recovered, resolved, needs_manual_intervention, rejected.
     """
 
     OPEN = "open"
     AUTO_RECOVERED = "auto_recovered"
     RESOLVED = "resolved"
+    NEEDS_MANUAL_INTERVENTION = "needs_manual_intervention"
+    REJECTED = "rejected"
 
 
 class AlertType(str, enum.Enum):

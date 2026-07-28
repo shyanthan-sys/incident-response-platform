@@ -17,3 +17,4 @@ sentence-transformers>=3.0.0
 langgraph>=0.2.0
 langchain-groq>=0.2.0
 langchain-core>=0.3.0
+tenacity>=9.0.0

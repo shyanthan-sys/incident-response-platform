@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import traceback
 import uuid
 from datetime import UTC, datetime
 
@@ -17,7 +18,14 @@ from app.models.user import User
 from app.schemas.incident import (
     IncidentListResponse,
     IncidentResponse,
+    RejectActionResponse,
+    RemediationActionResponse,
     WebSocketAuthMessage,
+)
+from app.services.remediation import (
+    IncidentStatusConflictError,
+    approve_incident_remediation,
+    reject_incident_remediation,
 )
 from app.ws.manager import IncidentConnectionManager
 
@@ -98,6 +106,49 @@ async def analyze_incident(
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.post("/incidents/{incident_id}/approve", response_model=RemediationActionResponse)
+async def approve_incident(
+    incident_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(Incident).where(Incident.id == incident_id))
+    incident = result.scalar_one_or_none()
+    if incident is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
+
+    try:
+        return await approve_incident_remediation(incident, db)
+    except IncidentStatusConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        logger.error(
+            "Unexpected error approving incident %s:\n%s",
+            incident_id,
+            traceback.format_exc(),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error during remediation approval",
+        ) from exc
+
+
+@router.post("/incidents/{incident_id}/reject", response_model=RejectActionResponse)
+async def reject_incident(
+    incident_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(Incident).where(Incident.id == incident_id))
+    incident = result.scalar_one_or_none()
+    if incident is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
+
+    return await reject_incident_remediation(incident, db)
 
 
 @router.websocket("/ws/incidents")

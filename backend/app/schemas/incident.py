@@ -33,3 +33,18 @@ class IncidentListResponse(BaseModel):
 
 class WebSocketAuthMessage(BaseModel):
     token: str = Field(min_length=1)
+
+
+class RemediationActionResponse(BaseModel):
+    status: str
+    remediation_success: bool | None = None
+    message: str
+    action: str | None = None
+    postmortem_seeded: bool | None = None
+    dead_lettered: bool | None = None
+    status_updated: bool | None = None  # True when DB commit succeeded after a failed remediation
+
+
+class RejectActionResponse(BaseModel):
+    status: str
+    message: str
