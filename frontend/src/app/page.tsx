@@ -1,7 +1,7 @@
-export default function Home() {
-  return (
-    <main className="flex min-h-screen items-center justify-center">
-      <h1 className="text-2xl font-semibold">Incident Response Platform</h1>
-    </main>
-  );
+import { redirect } from "next/navigation";
+
+// The root "/" route just redirects to /login.
+// Authenticated users will be bounced to /dashboard after the OAuth callback.
+export default function RootPage() {
+  redirect("/login");
 }

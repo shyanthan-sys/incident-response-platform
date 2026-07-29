@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AuthProvider } from "@/lib/auth-context";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,7 +14,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {/*
+         * AuthProvider lives at the root so every page — login, callback,
+         * dashboard — shares the same token state.
+         */}
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

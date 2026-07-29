@@ -10,7 +10,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -22,7 +22,7 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -32,6 +32,8 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
+    volumes:
+      - ./backend/data:/app/data
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/incident_response
@@ -41,7 +43,7 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_healthy 
+        condition: service_healthy
 
   chaos-service:
     build: ./chaos-service
@@ -73,7 +75,6 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-
   # frontend:
   #   build: ./frontend
   #   ports:
