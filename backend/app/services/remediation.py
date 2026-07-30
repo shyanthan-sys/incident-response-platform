@@ -191,6 +191,14 @@ async def reject_incident_remediation(
     incident: Incident,
     db: AsyncSession,
 ) -> dict[str, Any]:
+    # Mirror the same guard that approve_incident_remediation uses.
+    # Rejecting an already-terminal incident is a no-op at best and
+    # misleading at worst — return 409 so the UI can react cleanly.
+    if incident.status != IncidentStatus.OPEN:
+        raise IncidentStatusConflictError(
+            f"Incident is already '{incident.status.value}', cannot reject remediation"
+        )
+
     incident.status = IncidentStatus.REJECTED
     await db.commit()
     logger.info(

@@ -41,19 +41,37 @@ export default function IncidentDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
 
   // -----------------------------------------------------------------------
-  // Fetch incident by id (list endpoint, find by id)
+  // Fetch incident by id
+  //
+  // The list endpoint caps at 100 items.  To avoid missing the incident when
+  // the total count grows large we scan pages until we find it or exhaust
+  // the result set.  We clear `incident` before each refetch so stale state
+  // can never mask a real error.
   // -----------------------------------------------------------------------
   const fetchIncident = useCallback(async () => {
     try {
       setFetchError(null);
-      const res = await apiFetch(`/incidents?limit=100&offset=0`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: IncidentListResponse = await res.json();
-      const found = data.items.find((i) => i.id === id) ?? null;
+      const PAGE = 100;
+      let offset = 0;
+      let found: Incident | undefined;
+
+      while (!found) {
+        const res = await apiFetch(`/incidents?limit=${PAGE}&offset=${offset}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data: IncidentListResponse = await res.json();
+
+        found = data.items.find((i) => i.id === id);
+
+        // Stop when the page is exhausted or no more items exist
+        if (found || data.items.length < PAGE || offset + PAGE >= data.total) break;
+        offset += PAGE;
+      }
+
       if (!found) throw new Error("Incident not found");
       setIncident(found);
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : "Failed to load");
+      setIncident(null); // clear stale data so the error state renders
     } finally {
       setLoading(false);
     }
@@ -160,7 +178,17 @@ export default function IncidentDetailPage() {
         }
         throw new Error(msg);
       }
-      // Refresh the incident state
+
+      // Immediately reflect the new status in local state so the
+      // Approve/Reject buttons disappear without waiting for the refetch.
+      const body = await res.json() as { status?: string };
+      if (body.status && incident) {
+        setIncident((prev) =>
+          prev ? { ...prev, status: body.status as Incident["status"] } : prev
+        );
+      }
+
+      // Then refetch the full incident from the server for accuracy.
       await fetchIncident();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Action failed");
@@ -199,9 +227,24 @@ export default function IncidentDetailPage() {
     );
   }
 
-  const canAnalyze =
-    !incident.diagnosis && !isStreaming;
-  const alreadyDiagnosed = !!incident.diagnosis;
+  // Terminal statuses: no further action is meaningful.
+  const TERMINAL_STATUSES: Incident["status"][] = [
+    "resolved",
+    "auto_recovered",
+    "rejected",
+    "needs_manual_intervention",
+  ];
+  const isTerminal = TERMINAL_STATUSES.includes(incident.status);
+
+  // Show Analyze only when:
+  //  - incident is not in a terminal state (already acted on)
+  //  - no diagnosis exists yet
+  //  - not currently streaming
+  const canAnalyze = !isTerminal && !incident.diagnosis && !isStreaming;
+
+  // Show Re-analyze only when the incident is not terminal and
+  // already has a prior diagnosis (to allow refreshing the AI result).
+  const canReAnalyze = !isTerminal && !!incident.diagnosis && !isStreaming;
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -306,8 +349,8 @@ export default function IncidentDetailPage() {
           </div>
         )}
 
-        {/* Re-analyze button when already diagnosed */}
-        {alreadyDiagnosed && !isStreaming && (
+        {/* Re-analyze button when already diagnosed and not terminal */}
+        {canReAnalyze && (
           <div className="flex justify-end">
             <button
               onClick={handleAnalyze}

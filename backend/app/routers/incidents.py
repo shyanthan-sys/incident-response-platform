@@ -148,7 +148,10 @@ async def reject_incident(
     if incident is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
 
-    return await reject_incident_remediation(incident, db)
+    try:
+        return await reject_incident_remediation(incident, db)
+    except IncidentStatusConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
 @router.websocket("/ws/incidents")
