@@ -28,9 +28,7 @@ export default function DiagnosisPanel({
   const confidence = incident.diagnosis_confidence;
   const pct = confidence !== null ? Math.round(confidence * 100) : null;
   const canAutomate = isAutomatableAction(incident.suggested_action);
-  const isActionable =
-    incident.status === "needs_manual_intervention" ||
-    incident.status === "open";
+  const isActionable = incident.status === "open";
 
   // If streaming is in progress, show the raw stream text
   if (isStreaming && streamingText !== undefined) {
@@ -146,21 +144,53 @@ export default function DiagnosisPanel({
               {actionError}
             </p>
           )}
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <button
               onClick={onApprove}
               disabled={actionLoading}
-              className="flex-1 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 rounded-lg bg-emerald-600 px-4 py-2.5 sm:py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {actionLoading ? "Processing…" : "✓ Approve"}
             </button>
             <button
               onClick={onReject}
               disabled={actionLoading}
-              className="flex-1 rounded-lg border border-gray-600 bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-300 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 rounded-lg border border-gray-600 bg-gray-800 px-4 py-2.5 sm:py-2 text-sm font-semibold text-gray-300 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {actionLoading ? "Processing…" : "✕ Reject"}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Needs Manual Intervention Notice */}
+      {incident.status === "needs_manual_intervention" && (
+        <div className="pt-2 border-t border-gray-700">
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4">
+            <div className="flex items-start gap-3">
+              <div className="rounded-full bg-amber-500/20 p-1 text-amber-400 shrink-0 mt-0.5">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="h-5 w-5"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-sm font-semibold text-amber-300">
+                  Manual Investigation Required
+                </h4>
+                <p className="text-xs text-amber-200/90 leading-relaxed">
+                  Automated remediation was attempted but failed after retries. This incident requires manual investigation.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}

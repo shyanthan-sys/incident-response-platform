@@ -98,18 +98,31 @@ export default function HistoryPage() {
 
         {/* Error */}
         {error && (
-          <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-            {error}
+          <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+            <div className="flex items-center gap-2">
+              <svg className="h-5 w-5 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{error}</span>
+            </div>
+            <button
+              onClick={() => fetchHistory(page)}
+              className="rounded-lg bg-red-500/20 px-3.5 py-1.5 text-xs font-semibold text-red-200 hover:bg-red-500/30 transition-colors shrink-0"
+            >
+              Retry
+            </button>
           </div>
         )}
 
-        {/* Loading */}
+        {/* Loading Skeleton */}
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="flex flex-col items-center gap-4">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-              <p className="text-sm text-gray-400">Loading history…</p>
-            </div>
+          <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-4 space-y-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                className="h-12 w-full rounded-lg bg-gray-900 border border-gray-800/80 animate-pulse"
+              />
+            ))}
           </div>
         ) : incidents.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -123,8 +136,55 @@ export default function HistoryPage() {
           </div>
         ) : (
           <>
-            {/* Table */}
-            <div className="overflow-x-auto rounded-xl border border-gray-800">
+            {/* Mobile card list view */}
+            <div className="space-y-3 block md:hidden">
+              {incidents.map((incident) => {
+                const pct =
+                  incident.diagnosis_confidence !== null
+                    ? Math.round(incident.diagnosis_confidence * 100)
+                    : null;
+                return (
+                  <div
+                    key={incident.id}
+                    className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h3 className="font-semibold text-white text-sm">
+                          {incident.service_name}
+                        </h3>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {alertTypeLabel(incident.alert_type)}
+                        </p>
+                      </div>
+                      <StatusBadge status={incident.status} />
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-gray-400 pt-1 border-t border-gray-800/60">
+                      <span>{timeAgo(incident.detected_at)}</span>
+                      <span className="text-gray-500">{formatDate(incident.detected_at)}</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-1">
+                      {pct !== null ? (
+                        <span className="text-xs text-gray-400">
+                          Confidence: <span className="font-medium text-emerald-400">{pct}%</span>
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-600">No confidence rating</span>
+                      )}
+                      <Link
+                        href={`/dashboard/incidents/${incident.id}`}
+                        className="text-xs text-indigo-400 hover:text-indigo-300 font-medium"
+                      >
+                        View details →
+                      </Link>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-800">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-800 bg-gray-900">

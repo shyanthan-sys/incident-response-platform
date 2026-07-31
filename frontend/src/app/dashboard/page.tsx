@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
@@ -70,31 +70,26 @@ export default function DashboardPage() {
 
   // -----------------------------------------------------------------------
   // Initial fetch
-  // Depends only on `apiFetch`, which is now memoised in useApiClient and
-  // only changes when the token value itself changes.  This effect therefore
-  // runs exactly once on mount (and again only after a login/logout).
   // -----------------------------------------------------------------------
-  useEffect(() => {
-    if (!apiFetch) return; // guard: should never be falsy, but keeps the linter happy
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const res = await apiFetch("/incidents?limit=100&offset=0");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data: IncidentListResponse = await res.json();
-        if (!cancelled) setIncidents(data.items);
-      } catch (err) {
-        if (!cancelled)
-          setError(err instanceof Error ? err.message : "Failed to load incidents");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+  const fetchIncidents = useCallback(async () => {
+    if (!apiFetch) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await apiFetch("/incidents?limit=100&offset=0");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data: IncidentListResponse = await res.json();
+      setIncidents(data.items);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load incidents");
+    } finally {
+      setLoading(false);
     }
+  }, [apiFetch]);
 
-    load();
-    return () => { cancelled = true; };
-  }, [apiFetch]); // apiFetch identity is stable — this runs once on mount
+  useEffect(() => {
+    fetchIncidents();
+  }, [fetchIncidents]);
 
   // -----------------------------------------------------------------------
   // WebSocket connection
@@ -180,24 +175,13 @@ export default function DashboardPage() {
   // -----------------------------------------------------------------------
   // Render
   // -----------------------------------------------------------------------
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-950">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-          <p className="text-sm text-gray-400">Loading incidents…</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       {/* ------------------------------------------------------------------ */}
       {/* Nav                                                                 */}
       {/* ------------------------------------------------------------------ */}
       <nav className="sticky top-0 z-10 border-b border-gray-800 bg-gray-950/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           {/* Brand */}
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center justify-center rounded-lg bg-indigo-600 p-1.5">
@@ -214,22 +198,26 @@ export default function DashboardPage() {
                 />
               </svg>
             </span>
-            <span className="font-semibold text-white">Incident Response</span>
+            <span className="font-semibold text-white text-sm sm:text-base">Incident Response</span>
           </div>
 
           {/* Links + status */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
             {/* WS indicator */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 rounded-full border border-gray-800 bg-gray-900/80 px-2.5 py-1">
               <span
                 className={`h-2 w-2 rounded-full ${
                   wsConnected
                     ? "bg-emerald-400 animate-pulse"
-                    : "bg-gray-600"
+                    : "bg-amber-400 animate-ping"
                 }`}
               />
-              <span className="text-xs text-gray-400 hidden sm:inline">
-                {wsConnected ? "Live" : "Offline"}
+              <span
+                className={`text-xs ${
+                  wsConnected ? "text-gray-300" : "text-amber-300 font-medium"
+                }`}
+              >
+                {wsConnected ? "Live" : "Reconnecting…"}
               </span>
             </div>
 
@@ -258,68 +246,99 @@ export default function DashboardPage() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-white">Live Incident Board</h1>
           <p className="mt-1 text-sm text-gray-400">
-            {incidents.length} incident{incidents.length !== 1 ? "s" : ""} total
-            &nbsp;·&nbsp;
-            {incidents.filter((i) => i.status === "open").length} open
+            {loading ? (
+              <span className="inline-block h-4 w-32 rounded bg-gray-800 animate-pulse align-middle" />
+            ) : (
+              <>
+                {incidents.length} incident{incidents.length !== 1 ? "s" : ""} total
+                &nbsp;·&nbsp;
+                {incidents.filter((i) => i.status === "open").length} open
+              </>
+            )}
           </p>
         </div>
 
         {error && (
-          <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-            {error}
+          <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+            <div className="flex items-center gap-2">
+              <svg className="h-5 w-5 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{error}</span>
+            </div>
+            <button
+              onClick={fetchIncidents}
+              className="rounded-lg bg-red-500/20 px-3.5 py-1.5 text-xs font-semibold text-red-200 hover:bg-red-500/30 transition-colors shrink-0"
+            >
+              Retry
+            </button>
           </div>
         )}
 
-        {/* Kanban columns */}
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-          {COLUMNS.map((col) => {
-            const colIncidents = incidents
-              .filter((i) => (col.statuses as string[]).includes(i.status))
-              .sort(
-                (a, b) =>
-                  new Date(b.detected_at).getTime() -
-                  new Date(a.detected_at).getTime(),
-              );
-
-            return (
-              <div key={col.id} className="flex flex-col gap-3">
-                {/* Column header */}
-                <div
-                  className={`flex items-center justify-between rounded-xl border px-4 py-2.5 bg-gray-900 ${col.accent}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`h-2 w-2 rounded-full ${col.headerDot}`}
-                    />
-                    <span className="font-semibold text-sm text-white">
-                      {col.label}
-                    </span>
-                  </div>
-                  <span className="rounded-full bg-gray-800 px-2 py-0.5 text-xs text-gray-400">
-                    {colIncidents.length}
-                  </span>
-                </div>
-
-                {/* Cards */}
-                <div className="flex flex-col gap-2 min-h-[8rem]">
-                  {colIncidents.length === 0 ? (
-                    <div className="flex items-center justify-center rounded-xl border border-dashed border-gray-800 bg-gray-900/40 py-8 text-sm text-gray-600">
-                      No incidents
-                    </div>
-                  ) : (
-                    colIncidents.map((incident) => (
-                      <IncidentCard
-                        key={incident.id}
-                        incident={incident}
-                        animateIn={animatedIds.has(incident.id)}
-                      />
-                    ))
-                  )}
+        {/* Loading skeleton or Kanban columns */}
+        {loading ? (
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            {[1, 2, 3].map((colIdx) => (
+              <div key={colIdx} className="flex flex-col gap-3">
+                <div className="h-10 rounded-xl bg-gray-900 border border-gray-800 animate-pulse" />
+                <div className="flex flex-col gap-2">
+                  <div className="h-28 rounded-xl bg-gray-900/60 border border-gray-800/80 animate-pulse" />
+                  <div className="h-28 rounded-xl bg-gray-900/60 border border-gray-800/80 animate-pulse" />
                 </div>
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            {COLUMNS.map((col) => {
+              const colIncidents = incidents
+                .filter((i) => (col.statuses as string[]).includes(i.status))
+                .sort(
+                  (a, b) =>
+                    new Date(b.detected_at).getTime() -
+                    new Date(a.detected_at).getTime(),
+                );
+
+              return (
+                <div key={col.id} className="flex flex-col gap-3">
+                  {/* Column header */}
+                  <div
+                    className={`flex items-center justify-between rounded-xl border px-4 py-2.5 bg-gray-900 ${col.accent}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`h-2 w-2 rounded-full ${col.headerDot}`}
+                      />
+                      <span className="font-semibold text-sm text-white">
+                        {col.label}
+                      </span>
+                    </div>
+                    <span className="rounded-full bg-gray-800 px-2 py-0.5 text-xs text-gray-400">
+                      {colIncidents.length}
+                    </span>
+                  </div>
+
+                  {/* Cards */}
+                  <div className="flex flex-col gap-2 min-h-[8rem]">
+                    {colIncidents.length === 0 ? (
+                      <div className="flex items-center justify-center rounded-xl border border-dashed border-gray-800 bg-gray-900/40 py-8 text-sm text-gray-600">
+                        No incidents
+                      </div>
+                    ) : (
+                      colIncidents.map((incident) => (
+                        <IncidentCard
+                          key={incident.id}
+                          incident={incident}
+                          animateIn={animatedIds.has(incident.id)}
+                        />
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </main>
     </div>
   );

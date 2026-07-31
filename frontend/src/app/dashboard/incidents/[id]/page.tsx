@@ -8,7 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 import StatusBadge from "@/components/StatusBadge";
 import DiagnosisPanel from "@/components/DiagnosisPanel";
 import type { Incident, IncidentListResponse } from "@/lib/types";
-import { alertTypeLabel, timeAgo } from "@/lib/types";
+import { alertTypeLabel, isTerminalStatus, timeAgo } from "@/lib/types";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -202,39 +202,102 @@ export default function IncidentDetailPage() {
   // -----------------------------------------------------------------------
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-950">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-          <p className="text-sm text-gray-400">Loading incident…</p>
-        </div>
+      <div className="min-h-screen bg-gray-950 text-white">
+        <nav className="sticky top-0 z-10 border-b border-gray-800 bg-gray-950/80 backdrop-blur-sm">
+          <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
+            <Link
+              href="/dashboard"
+              className="text-sm text-gray-400 hover:text-white transition-colors"
+            >
+              ← Board
+            </Link>
+            <span className="text-gray-700">/</span>
+            <div className="h-4 w-24 rounded bg-gray-800 animate-pulse" />
+          </div>
+        </nav>
+
+        <main className="mx-auto max-w-3xl px-4 py-8 space-y-6">
+          <div className="rounded-xl border border-gray-800 bg-gray-900 p-6 space-y-6 animate-pulse">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-2 flex-1">
+                <div className="h-6 w-48 rounded bg-gray-800" />
+                <div className="h-4 w-32 rounded bg-gray-800/60" />
+              </div>
+              <div className="h-6 w-20 rounded-full bg-gray-800" />
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 border-t border-gray-800 pt-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="space-y-1.5">
+                  <div className="h-3 w-16 rounded bg-gray-800/40" />
+                  <div className="h-4 w-24 rounded bg-gray-800" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </main>
       </div>
     );
   }
 
   if (fetchError || !incident) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-gray-950 px-4">
-        <p className="text-red-400 text-sm">
-          {fetchError ?? "Incident not found"}
-        </p>
-        <button
-          onClick={() => router.back()}
-          className="text-xs text-gray-400 hover:text-white transition"
-        >
-          ← Go back
-        </button>
+      <div className="min-h-screen bg-gray-950 text-white">
+        <nav className="sticky top-0 z-10 border-b border-gray-800 bg-gray-950/80 backdrop-blur-sm">
+          <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
+            <Link
+              href="/dashboard"
+              className="text-sm text-gray-400 hover:text-white transition-colors"
+            >
+              ← Board
+            </Link>
+          </div>
+        </nav>
+
+        <div className="flex flex-col items-center justify-center py-20 px-4 space-y-4">
+          <div className="rounded-full bg-red-500/10 p-3 text-red-400 border border-red-500/20">
+            <svg
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </div>
+          <div className="text-center max-w-md">
+            <h2 className="text-lg font-semibold text-white">
+              {fetchError ?? "Incident not found"}
+            </h2>
+            <p className="text-xs text-gray-400 mt-1">
+              Could not load incident details. The incident might not exist or the backend server is unreachable.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 pt-2">
+            <button
+              onClick={fetchIncident}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-500 transition-colors"
+            >
+              Retry
+            </button>
+            <Link
+              href="/dashboard"
+              className="rounded-lg border border-gray-700 bg-gray-800 px-4 py-2 text-xs font-medium text-gray-300 hover:bg-gray-700 transition-colors"
+            >
+              ← Back to board
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
 
   // Terminal statuses: no further action is meaningful.
-  const TERMINAL_STATUSES: Incident["status"][] = [
-    "resolved",
-    "auto_recovered",
-    "rejected",
-    "needs_manual_intervention",
-  ];
-  const isTerminal = TERMINAL_STATUSES.includes(incident.status);
+  const isTerminal = isTerminalStatus(incident.status);
 
   // Show Analyze only when:
   //  - incident is not in a terminal state (already acted on)
