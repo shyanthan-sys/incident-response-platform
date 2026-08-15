@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useApiClient } from "@/lib/api-client";
 import IncidentCard from "@/components/IncidentCard";
+import DemoIncidentTrigger from "@/components/DemoIncidentTrigger";
 import type { Incident, IncidentListResponse, WsMessage } from "@/lib/types";
 
 const WS_URL =
@@ -257,6 +258,9 @@ export default function DashboardPage() {
             )}
           </p>
         </div>
+
+        {/* Demo incident trigger card */}
+        <DemoIncidentTrigger />
 
         {error && (
           <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">

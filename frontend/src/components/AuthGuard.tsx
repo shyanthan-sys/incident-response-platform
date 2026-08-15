@@ -17,23 +17,33 @@ interface AuthGuardProps {
  * NOTE: Because the token lives only in React state (not localStorage), a
  * hard page refresh will clear it and the guard will redirect the user to
  * /login. That is the intentional tradeoff for this portfolio project.
+ *
+ * `ready` is false on the very first synchronous render (before any useEffect
+ * has run). We must NOT redirect until ready=true, otherwise every client-side
+ * navigation into a /dashboard/* route will incorrectly bounce to /login
+ * because the new layout segment mounts with isAuthenticated=false before
+ * React has propagated the in-memory token through the context tree.
  */
 export default function AuthGuard({ children }: AuthGuardProps) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, ready } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    // Only redirect once we know the auth state is settled.
+    if (ready && !isAuthenticated) {
       router.replace("/login");
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, ready, router]);
 
-  // Render nothing while the redirect is in flight to avoid a flash of
-  // protected content.
-  if (!isAuthenticated) {
+  // While auth state is still being determined, render a neutral screen.
+  // This covers: (a) the first render before useEffect fires, and
+  // (b) the brief moment after redirect is queued but before navigation completes.
+  if (!ready || !isAuthenticated) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-gray-950">
-        <p className="text-sm text-gray-400">Redirecting…</p>
+        <p className="text-sm text-gray-400">
+          {!ready ? "Loading…" : "Redirecting…"}
+        </p>
       </main>
     );
   }
