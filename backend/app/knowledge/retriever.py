@@ -2,7 +2,7 @@ import json
 from typing import Any
 
 from app.knowledge.postmortems import (
-    get_embedding_model,
+    get_gemini_embeddings,
     get_postmortem_collection,
 )
 
@@ -20,9 +20,7 @@ def _parse_resolution_steps(raw: str) -> list[str] | str:
 def search_similar_incidents(query_text: str, top_k: int = 3) -> list[dict[str, Any]]:
     """Embed query_text and return the most similar postmortems from ChromaDB."""
     collection = get_postmortem_collection()
-    model = get_embedding_model()
-
-    query_embedding = model.encode(query_text, show_progress_bar=False).tolist()
+    query_embedding = get_gemini_embeddings([query_text])[0]
     results = collection.query(
         query_embeddings=[query_embedding],
         n_results=top_k,

@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     session_secret_key: str = "change-me-in-production"
     frontend_url: str = "http://localhost:3000"
     groq_api_key: str
+    google_ai_api_key: str
 
     @property
     def async_database_url(self) -> str:

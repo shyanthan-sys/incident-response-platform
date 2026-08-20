@@ -6,9 +6,12 @@ from typing import Any, TypedDict
 
 import chromadb
 from chromadb.api.models.Collection import Collection
-from sentence_transformers import SentenceTransformer
+from google import genai
+from google.genai import types as genai_types
 
-EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
+from app.config import get_settings
+
+GEMINI_EMBEDDING_MODEL = "gemini-embedding-001"
 COLLECTION_NAME = "postmortems"
 CHROMA_PATH = Path(__file__).resolve().parents[2] / "data" / "chroma"
 
@@ -27,9 +30,16 @@ def get_chroma_client() -> chromadb.PersistentClient:
     return chromadb.PersistentClient(path=str(CHROMA_PATH))
 
 
-@lru_cache
-def get_embedding_model() -> SentenceTransformer:
-    return SentenceTransformer(EMBEDDING_MODEL_NAME)
+def get_gemini_embeddings(texts: list[str]) -> list[list[float]]:
+    """Call Gemini Embedding API and return a list of embedding vectors."""
+    settings = get_settings()
+    client = genai.Client(api_key=settings.google_ai_api_key)
+    response = client.models.embed_content(
+        model=GEMINI_EMBEDDING_MODEL,
+        contents=texts,
+        config=genai_types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT"),
+    )
+    return [e.values for e in response.embeddings]
 
 
 def get_postmortem_collection() -> Collection:
@@ -75,12 +85,11 @@ def postmortem_metadata(postmortem: Postmortem) -> dict[str, str]:
 
 
 def seed_postmortems(postmortems: list[Postmortem]) -> int:
-    """Embed postmortems and upsert into ChromaDB. Idempotent by title hash."""
+    """Embed postmortems via Gemini and upsert into ChromaDB. Idempotent by title hash."""
     if not postmortems:
         return 0
 
     collection = get_postmortem_collection()
-    model = get_embedding_model()
 
     ids: list[str] = []
     documents: list[str] = []
@@ -91,7 +100,7 @@ def seed_postmortems(postmortems: list[Postmortem]) -> int:
         documents.append(build_embedding_text(postmortem))
         metadatas.append(postmortem_metadata(postmortem))
 
-    embeddings = model.encode(documents, show_progress_bar=False).tolist()
+    embeddings = get_gemini_embeddings(documents)
 
     collection.upsert(
         ids=ids,
