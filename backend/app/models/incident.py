@@ -26,6 +26,7 @@ class IncidentStatus(str, enum.Enum):
 class AlertType(str, enum.Enum):
     HIGH_LATENCY = "high_latency"
     HIGH_ERRORS = "high_errors"
+    HIGH_CPU = "high_cpu"
     SERVICE_DOWN = "service_down"
     TIMEOUT = "timeout"
     CONNECTION_ERROR = "connection_error"

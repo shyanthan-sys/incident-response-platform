@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from app.config import get_settings
 from app.knowledge.retriever import search_similar_incidents
 
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL = "openai/gpt-oss-120b"
 
 SuggestedAction = Literal[
     "restart_service",

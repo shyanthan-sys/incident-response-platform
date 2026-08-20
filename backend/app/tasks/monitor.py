@@ -25,34 +25,52 @@ SERVICE_NAME = "chaos-service"
 HEALTH_URL = f"{settings.chaos_service_url.rstrip('/')}/health"
 REQUEST_TIMEOUT_SECONDS = 10.0
 LATENCY_THRESHOLD_SECONDS = 2.0
+CPU_PERCENT_THRESHOLD = 85.0
 INCIDENTS_CHANNEL = "incidents"
 
 
-async def _fetch_health() -> tuple[int | None, float, str | None]:
+async def _fetch_health() -> tuple[int | None, float, str | None, dict | None]:
+    """GET /health and return (status_code, elapsed, error, body).
+
+    body is the parsed JSON dict when the response is readable, otherwise None.
+    error is one of: None | "timeout" | "connection_error".
+    """
     start = time.perf_counter()
     try:
         async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS) as client:
             response = await client.get(HEALTH_URL)
             elapsed = time.perf_counter() - start
-            return response.status_code, elapsed, None
+            try:
+                body = response.json()
+            except Exception:
+                body = None
+            return response.status_code, elapsed, None, body
     except httpx.TimeoutException:
-        return None, time.perf_counter() - start, "timeout"
+        return None, time.perf_counter() - start, "timeout", None
     except httpx.RequestError:
-        return None, time.perf_counter() - start, "connection_error"
+        return None, time.perf_counter() - start, "connection_error", None
 
 
 def _is_abnormal(
-    status_code: int | None, elapsed: float, error: str | None
+    status_code: int | None,
+    elapsed: float,
+    error: str | None,
+    cpu_percent: float | None = None,
 ) -> bool:
     if error is not None:
         return True
     if status_code != 200:
         return True
+    if cpu_percent is not None and cpu_percent > CPU_PERCENT_THRESHOLD:
+        return True
     return elapsed > LATENCY_THRESHOLD_SECONDS
 
 
 def _classify_abnormality(
-    status_code: int | None, elapsed: float, error: str | None
+    status_code: int | None,
+    elapsed: float,
+    error: str | None,
+    cpu_percent: float | None = None,
 ) -> tuple[AlertType, Severity]:
     if error == "timeout":
         return AlertType.TIMEOUT, Severity.HIGH
@@ -64,6 +82,8 @@ def _classify_abnormality(
         return AlertType.HIGH_ERRORS, Severity.HIGH
     if status_code is not None and status_code != 200:
         return AlertType.ERROR_RESPONSE, Severity.MEDIUM
+    if cpu_percent is not None and cpu_percent > CPU_PERCENT_THRESHOLD:
+        return AlertType.HIGH_CPU, Severity.HIGH
     return AlertType.HIGH_LATENCY, Severity.MEDIUM
 
 
@@ -176,13 +196,34 @@ async def _auto_recover_incident(session, open_incident: Incident) -> None:
 
 
 async def _monitor_async() -> None:
-    status_code, elapsed, error = await _fetch_health()
-    abnormal = _is_abnormal(status_code, elapsed, error)
+    status_code, elapsed, error, body = await _fetch_health()
+
+    # Extract cpu_percent from the response body when present.
+    # Missing field → None (not applicable); we never treat absence as an error.
+    cpu_percent: float | None = None
+    if isinstance(body, dict) and "cpu_percent" in body:
+        try:
+            cpu_percent = float(body["cpu_percent"])
+        except (TypeError, ValueError):
+            logger.warning("cpu_percent field present but not numeric: %r", body["cpu_percent"])
+
+    if cpu_percent is not None:
+        logger.info(
+            "Health check body contains cpu_percent=%.1f (threshold=%.1f) — %s",
+            cpu_percent,
+            CPU_PERCENT_THRESHOLD,
+            "ABNORMAL" if cpu_percent > CPU_PERCENT_THRESHOLD else "ok",
+        )
+    else:
+        logger.debug("Health check body has no cpu_percent field")
+
+    abnormal = _is_abnormal(status_code, elapsed, error, cpu_percent)
     logger.debug(
-        "Health check: status_code=%s elapsed=%.3fs error=%s abnormal=%s",
+        "Health check: status_code=%s elapsed=%.3fs error=%s cpu_percent=%s abnormal=%s",
         status_code,
         elapsed,
         error,
+        cpu_percent,
         abnormal,
     )
 
@@ -203,7 +244,7 @@ async def _monitor_async() -> None:
 
         if abnormal and open_incident is None:
             # Fast detection: a single bad poll opens a new incident immediately.
-            alert_type, severity = _classify_abnormality(status_code, elapsed, error)
+            alert_type, severity = _classify_abnormality(status_code, elapsed, error, cpu_percent)
             incident = Incident(
                 service_name=SERVICE_NAME,
                 alert_type=alert_type,
